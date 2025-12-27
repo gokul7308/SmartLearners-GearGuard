@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>GearGuard – Maintenance System</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<!-- Firebase -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+
+<style>
+body {
+  font-family: Arial, sans-serif;
+  background: #f4f6f8;
+  margin: 0;
+}
+header {
+  background: #2c3e50;
+  color: white;
+  padding: 15px;
+  text-align: center;
+}
+.container {
+  padding: 15px;
+}
+input, select, button {
+  width: 100%;
+  padding: 10px;
+  margin: 5px 0;
+}
+button {
+  background: #3498db;
+  color: white;
+  border: none;
+  border-radius: 5px;
+}
+button:hover {
+  background: #2980b9;
+}
+.card {
+  background: white;
+  padding: 10px;
+  margin: 10px 0;
+  border-radius: 8px;
+}
+.hidden { display: none; }
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px,1fr));
+  gap: 10px;
+}
+.stat {
+  background: #1abc9c;
+  color: white;
+  padding: 15px;
+  border-radius: 8px;
+  text-align: center;
+}
+
+/* Kanban */
+.kanban {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px,1fr));
+  gap: 10px;
+  margin-top: 20px;
+}
+.column {
+  background: #eaeaea;
+  padding: 10px;
+  border-radius: 8px;
+  min-height: 250px;
+}
+.column h4 {
+  text-align: center;
+}
+.task {
+  background: white;
+  padding: 8px;
+  margin: 8px 0;
+  border-radius: 6px;
+  cursor: grab;
+}
+</style>
+</head>
+
+<body>
+
+<header>🛠️ GearGuard – Maintenance Management System</header>
+
+<div class="container">
+
+<!-- LOGIN -->
+<div id="login">
+  <h3>Login / Register</h3>
+  <input id="email" placeholder="Email">
+  <input id="password" type="password" placeholder="Password">
+  <button onclick="login()">Login</button>
+  <button onclick="register()">Register</button>
+</div>
+
+<!-- APP -->
+<div id="app" class="hidden">
+  <button onclick="logout()">Logout</button>
+
+  <!-- DASHBOARD -->
+  <h3>📊 Dashboard</h3>
+  <div class="grid">
+    <div class="stat" id="total">0 Requests</div>
+    <div class="stat" id="preventive">0 Preventive</div>
+    <div class="stat" id="corrective">0 Corrective</div>
+  </div>
+
+  <!-- CREATE REQUEST -->
+  <h3>➕ Create Maintenance Request</h3>
+  <select id="equipment">
+    <option>CNC Machine | Mechanical</option>
+    <option>Office Printer | IT</option>
+    <option>Company Laptop | IT</option>
+    <option>Delivery Vehicle | Mechanical</option>
+  </select>
+  <input id="issue" placeholder="Describe issue">
+  <select id="type">
+    <option>Corrective</option>
+    <option>Preventive</option>
+  </select>
+  <input type="date" id="date">
+  <button onclick="addRequest()">Create Request</button>
+
+  <!-- KANBAN -->
+  <h3>🧩 Maintenance Kanban Board</h3>
+  <div class="kanban">
+    <div class="column" ondrop="drop(event,'New')" ondragover="allowDrop(event)">
+      <h4>New</h4>
+      <div id="New"></div>
+    </div>
+    <div class="column" ondrop="drop(event,'In Progress')" ondragover="allowDrop(event)">
+      <h4>In Progress</h4>
+      <div id="In Progress"></div>
+    </div>
+    <div class="column" ondrop="drop(event,'Repaired')" ondragover="allowDrop(event)">
+      <h4>Repaired</h4>
+      <div id="Repaired"></div>
+    </div>
+    <div class="column" ondrop="drop(event,'Scrap')" ondragover="allowDrop(event)">
+      <h4>Scrap</h4>
+      <div id="Scrap"></div>
+    </div>
+  </div>
+</div>
+
+</div>
+
+<script>
+// 🔥 FIREBASE CONFIG — REPLACE WITH YOUR OWN
+firebase.initializeApp({
+  apiKey: "AIzaSyCRmWf05zD496XFEHqR2Boa09ohyKcGf74",
+  authDomain: "gearguard-ab4ed.firebaseapp.com",
+  projectId: "gearguard-ab4ed"
+});
+
+const auth = firebase.auth();
+const db = firebase.firestore();
+
+const loginDiv = document.getElementById("login");
+const appDiv = document.getElementById("app");
+
+auth.onAuthStateChanged(user => {
+  if (user) {
+    loginDiv.style.display = "none";
+    appDiv.classList.remove("hidden");
+    loadData();
+  }
+});
+
+function login() {
+  auth.signInWithEmailAndPassword(email.value, password.value);
+}
+function register() {
+  auth.createUserWithEmailAndPassword(email.value, password.value);
+}
+function logout() {
+  auth.signOut();
+  location.reload();
+}
+
+// Add Request
+function addRequest() {
+  const eq = equipment.value.split("|");
+  db.collection("requests").add({
+    equipment: eq[0],
+    team: eq[1],
+    issue: issue.value,
+    type: type.value,
+    date: date.value,
+    status: "New"
+  });
+  issue.value = "";
+  date.value = "";
+}
+
+// Kanban Logic
+function allowDrop(ev) {
+  ev.preventDefault();
+}
+function drag(ev) {
+  ev.dataTransfer.setData("id", ev.target.id);
+}
+function drop(ev, status) {
+  ev.preventDefault();
+  const id = ev.dataTransfer.getData("id");
+  db.collection("requests").doc(id).update({ status });
+}
+
+// Load Data
+function loadData() {
+  db.collection("requests").onSnapshot(snap => {
+    ["New","In Progress","Repaired","Scrap"].forEach(s => {
+      document.getElementById(s).innerHTML = "";
+    });
+
+    let t = 0, p = 0, c = 0;
+
+    snap.forEach(doc => {
+      const d = doc.data();
+      t++;
+      d.type === "Preventive" ? p++ : c++;
+
+      const task = document.createElement("div");
+      task.className = "task";
+      task.id = doc.id;
+      task.draggable = true;
+      task.ondragstart = drag;
+      task.innerHTML = `
+        <b>${d.equipment}</b><br>
+        ${d.issue}<br>
+        ${d.team}<br>
+        ${d.date || ""}
+      `;
+      document.getElementById(d.status).appendChild(task);
+    });
+
+    total.innerText = t + " Requests";
+    preventive.innerText = p + " Preventive";
+    corrective.innerText = c + " Corrective";
+  });
+}
+</script>
+
+</body>
+</html>
